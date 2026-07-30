@@ -9,7 +9,7 @@
 - 📱 完全响应式，移动端友好
 - 🎬 滚动入场动画
 - 💬 评论区（Giscus，无需自建后端）
-- 🚀 推送即自动部署（GitHub Actions）
+- 🚀 一键构建并发布到 GitHub Pages
 
 ## 🗂 目录结构
 
@@ -17,6 +17,7 @@
 .
 ├── index.html
 ├── vite.config.js
+├── deploy.sh                 # 一键发布脚本
 ├── src/
 │   ├── main.jsx
 │   ├── App.jsx
@@ -25,8 +26,10 @@
 │   │   ├── site.js          # ★ 所有站点文案与数据都在这里改
 │   │   └── comments.js      # 评论区（Giscus）配置
 │   └── components/          # 各板块组件
-└── .github/workflows/deploy.yml
+└── （发布用的静态文件在 master 分支根目录，不在此工作区）
 ```
+
+> 注：源码在 `source` 分支；`master` 分支只存放构建后的静态文件，由 GitHub Pages 直接发布。
 
 ## 🛠 本地开发
 
@@ -48,7 +51,7 @@ npm run preview    # 预览构建产物 http://localhost:4173
 - `skills`：技能与熟练度（0–100）
 - `projects`：项目卡片（标题、描述、标签、预览/源码链接）
 
-修改后保存即可，部署会自动更新。
+修改后保存即可，发布后会自动更新。
 
 ## 💬 启用评论区（Giscus）
 
@@ -56,19 +59,26 @@ npm run preview    # 预览构建产物 http://localhost:4173
 
 1. 在仓库 **Settings → Features** 中开启 **Discussions**。
 2. 访问 [giscus.app](https://giscus.app)，用 GitHub 登录并授权 Giscus 应用，按提示生成配置，把得到的 **Repository ID** 与 **Category ID** 填入 `src/config/comments.js` 的 `repoId` 与 `categoryId` 字段。
-3. 提交并推送，刷新页面即可看到评论区。
+3. 提交并发布，刷新页面即可看到评论区。
 
 > 未填写前，评论区会显示一段引导提示，不影响其他功能。
 
-## 🚀 部署（已默认配置好）
+## 🚀 部署
 
-仓库已包含 `.github/workflows/deploy.yml`，**推送到 `master` 分支即自动构建并部署**。你只需在仓库中开启一次 Pages：
+- **源码**在 `source` 分支；
+- **站内静态文件**（构建产物）在 `master` 分支根目录，GitHub Pages 直接从 `master` 发布到 <https://xuany14.github.io>。
 
-1. 打开仓库 **Settings → Pages**。
-2. **Build and deployment → Source** 选择 **GitHub Actions**。
-3. 等待 Actions 跑完（或手动在 Actions 页 re-run），站点即上线于 <https://xuany14.github.io>。
+本地改完内容后，一键构建并发布：
 
-> 说明：这是 `*.github.io` 用户页，GitHub Pages 只能从该仓库的默认分支经 GitHub Actions 发布（不能用 `gh-pages` 分支，那是项目页的做法）。
+```bash
+npm run build
+./deploy.sh        # 把 dist/ 推送到 master，公网几分钟内更新
+```
+
+首次只需确认一次（仓库默认已是此设置，通常不用改）：
+**Settings → Pages → Build and deployment → Source** 选 **Deploy from a branch**，分支选 **master** / **(root)**。
+
+> 说明：这是 `*.github.io` 用户页，GitHub Pages 从默认分支的 `master` 根目录发布（不能用 `gh-pages` 分支，那是项目页的做法）。
 
 ## 🧱 技术栈
 
