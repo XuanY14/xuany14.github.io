@@ -1,101 +1,75 @@
-# Academic Pages
-**Academic Pages is a GitHub Pages template for personal and professional portfolio-oriented websites.**
+# 个人主页 · Personal Site
 
-![Academic Pages template example](images/themes/homepage-light.png "Academic Pages template example")
+一个基于 **React + Vite** 构建的现代化个人主页，部署在 GitHub Pages（`xuany14.github.io`），内置明暗主题切换、响应式布局与基于 GitHub Discussions 的评论区。
 
-# Getting Started
+## ✨ 特性
 
-1. Register a GitHub account if you don't have one and confirm your e-mail (required!)
-1. Click the "Use this template" button in the top right.
-1. On the "New repository" page, enter your public repository name as "[your GitHub username].github.io", which will also be your website's URL.
-1. Edit site-wide configuration in `_config.yml` and double check that the `url` is the one that you just selected in the previous step and that `repository` reflects the correct path for your repository.
-1. Add your site content, upload any files (like PDFs, .zip files, etc.) to the `files/` directory. They will appear at https://[your GitHub username].github.io/files/example.pdf.
-1. Check status by going to the repository settings, in the "GitHub pages" section
-1. (Optional) Use the Jupyter notebooks or python scripts in the `markdown_generator` folder to generate markdown files for publications and talks from a TSV file.
+- ⚡️ React 18 + Vite 5，极速构建
+- 🌗 亮色 / 暗色主题（记忆用户选择）
+- 📱 完全响应式，移动端友好
+- 🎬 滚动入场动画
+- 💬 评论区（Giscus，无需自建后端）
+- 🚀 推送即自动部署（GitHub Actions）
 
-See more info at https://academicpages.github.io/
+## 🗂 目录结构
 
-### Additional Tutorials
-
-Additional tutorials for working with the Academic Pages template can be found at the following sites:
-- https://jayrobwilliams.com/posts/2020/06/academic-website/
-
-## Running locally
-
-When you are initially working on your website, it is very useful to be able to preview the changes locally before pushing them to GitHub. To work locally you will need to:
-
-1. Clone the repository and made updates as detailed above.
-
-### Using a different IDE
-1. Make sure you have ruby-dev, bundler, and nodejs installed
-    
-    On most Linux distributions and [Windows Subsystem Linux](https://learn.microsoft.com/en-us/windows/wsl/about) the command is:
-    ```bash
-    sudo apt install ruby-dev ruby-bundler nodejs
-    ```
-    If you see error `Unable to locate package ruby-bundler`, `Unable to locate package nodejs `, run the following:
-    ```bash
-    sudo apt update && sudo apt upgrade -y
-    ```
-    then try running `sudo apt install ruby-dev ruby-bundler nodejs` again.
-
-    On MacOS the commands are:
-    ```bash
-    brew install ruby
-    brew install node
-    gem install bundler
-    ```
-1. Run `bundle install` to install ruby dependencies. If you get errors, delete Gemfile.lock and try again.
-
-    If you see file permission error like `Fetching bundler-2.6.3.gem ERROR:  While executing gem (Gem::FilePermissionError) You don't have write permissions for the /var/lib/gems/3.2.0 directory.` or `Bundler::PermissionError: There was an error while trying to write to /usr/local/bin.`
-    Install Gems Locally (Recommended):
-    ```bash
-    bundle config set --local path 'vendor/bundle'
-    ```
-    then try run `bundle install` again. If succeeded, you should see a folder called `vendor` and `.bundle`.
-
-1. Run `jekyll serve -l -H localhost` to generate the HTML and serve it from `localhost:4000` the local server will automatically rebuild and refresh the pages on change to Markdown (*.md) and HTML files, while changes to the core template and configuration (i.e., `_config.yml`) will require stopping and restarting Jekyll.
-    You may also try `bundle exec jekyll serve -l -H localhost` to ensure jekyll to use specific dependencies on your own local machine.
-
-If you are running on Linux it may be necessary to install some additional dependencies prior to being able to run locally: `sudo apt install build-essential gcc make`
-
-## Using Docker
-
-Working from a different OS, or just want to avoid installing dependencies? You can use the provided `Dockerfile` to build a container that will run the site for you if you have [Docker](https://www.docker.com/) installed.
-
-You can build and execute the container by running the following command in the repository:
-
-```bash
-chmod -R 777 .
-docker compose up
+```
+.
+├── index.html
+├── vite.config.js
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx
+│   ├── index.css            # 全局样式 / 设计系统
+│   ├── config/
+│   │   ├── site.js          # ★ 所有站点文案与数据都在这里改
+│   │   └── comments.js      # 评论区（Giscus）配置
+│   └── components/          # 各板块组件
+└── .github/workflows/deploy.yml
 ```
 
-You should now be able to access the website from `localhost:4000`.
+## 🛠 本地开发
 
-### Using the DevContainer in VS Code
+```bash
+npm install
+npm run dev        # 开发预览 http://localhost:5173
+npm run build      # 生产构建到 dist/
+npm run preview    # 预览构建产物 http://localhost:4173
+```
 
-If you are using [Visual Studio Code](https://code.visualstudio.com/) you can use the [Dev Container](https://code.visualstudio.com/docs/devcontainers/containers) that comes with this Repository. Normally VS Code detects that a development container configuration is available and asks you if you want to use the container. If this doesn't happen you can manually start the container by **F1->DevContainer: Reopen in Container**. This restarts your VS Code in the container and automatically hosts your academic page locally on http://localhost:4000. All changes will be updated live to that page after a few seconds.
+## ✏️ 如何修改内容
 
-# Maintenance
+**几乎不需要动代码**——打开 `src/config/site.js`，修改：
 
-Bug reports and feature requests to the template should be [submitted via GitHub](https://github.com/academicpages/academicpages.github.io/issues/new/choose). For questions concerning how to style the template, please feel free to start a [new discussion on GitHub](https://github.com/academicpages/academicpages.github.io/discussions).
+- `name` / `title` / `tagline` / `bio`：个人信息
+- `avatar`：头像（默认 `public/avatar.svg`，可换成自己的图片）
+- `socials`：社交链接（支持 github / email / linkedin / twitter / weibo / zhihu / bilibili / telegram / website）
+- `about` / `stats`：关于段落与数据指标
+- `skills`：技能与熟练度（0–100）
+- `projects`：项目卡片（标题、描述、标签、预览/源码链接）
 
-This repository was forked (then detached) by [Stuart Geiger](https://github.com/staeiou) from the [Minimal Mistakes Jekyll Theme](https://mmistakes.github.io/minimal-mistakes/), which is © 2016 Michael Rose and released under the MIT License (see LICENSE.md). It is currently being maintained by [Robert Zupko](https://github.com/rjzupkoii), and additional maintainers would be welcome.
+修改后保存即可，部署会自动更新。
 
-## Bugfixes and enhancements
+## 💬 启用评论区（Giscus）
 
-If you have bugfixes and enhancements that you would like to submit as a pull request, you will need to [fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) this repository as opposed to using it as a template. This will also allow you to [synchronize your copy](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork) of the template to your fork as well.
+评论区基于 [Giscus](https://giscus.app)，使用你仓库的 GitHub Discussions，**免费、无需服务器**。首次使用前需完成两步：
 
-Unfortunately, one logistical issue with a template theme like Academic Pages that makes it a little tricky to get bug fixes and updates to the core theme. If you use this template and customize it, you will probably get merge conflicts if you attempt to synchronize, although [rebasing](https://git-scm.com/docs/git-rebase) the changes from this template will work along with manually [cherry picking](https://git-scm.com/docs/git-cherry-pick) the relevant commits. If you are not comfortable with the Git command line, you can save your various `.yml` configuration files and Markdown files, delete the repository, and fork it again. 
+1. 在仓库 **Settings → Features** 中开启 **Discussions**。
+2. 访问 [giscus.app](https://giscus.app)，用 GitHub 登录并授权 Giscus 应用，按提示生成配置，把得到的 **Repository ID** 与 **Category ID** 填入 `src/config/comments.js` 的 `repoId` 与 `categoryId` 字段。
+3. 提交并推送，刷新页面即可看到评论区。
 
----
-<div align="center">
-    
-![pages-build-deployment](https://github.com/academicpages/academicpages.github.io/actions/workflows/pages/pages-build-deployment/badge.svg)
-[![GitHub contributors](https://img.shields.io/github/contributors/academicpages/academicpages.github.io.svg)](https://github.com/academicpages/academicpages.github.io/graphs/contributors)
-[![GitHub release](https://img.shields.io/github/v/release/academicpages/academicpages.github.io)](https://github.com/academicpages/academicpages.github.io/releases/latest)
-[![GitHub license](https://img.shields.io/github/license/academicpages/academicpages.github.io?color=blue)](https://github.com/academicpages/academicpages.github.io/blob/master/LICENSE)
+> 未填写前，评论区会显示一段引导提示，不影响其他功能。
 
-[![GitHub stars](https://img.shields.io/github/stars/academicpages/academicpages.github.io)](https://github.com/academicpages/academicpages.github.io)
-[![GitHub forks](https://img.shields.io/github/forks/academicpages/academicpages.github.io)](https://github.com/academicpages/academicpages.github.io/fork)
-</div>
+## 🚀 部署（已默认配置好）
+
+仓库已包含 `.github/workflows/deploy.yml`，**推送到 `master` 分支即自动构建并部署**。你只需在仓库中开启一次 Pages：
+
+1. 打开仓库 **Settings → Pages**。
+2. **Build and deployment → Source** 选择 **GitHub Actions**。
+3. 等待 Actions 跑完（或手动在 Actions 页 re-run），站点即上线于 <https://xuany14.github.io>。
+
+> 说明：这是 `*.github.io` 用户页，GitHub Pages 只能从该仓库的默认分支经 GitHub Actions 发布（不能用 `gh-pages` 分支，那是项目页的做法）。
+
+## 🧱 技术栈
+
+React · Vite · GitHub Pages · Giscus
