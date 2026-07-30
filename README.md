@@ -1,37 +1,60 @@
-# 个人主页 · Personal Site
+# OPERATION FRONTLINE · 战术行动（写实第一人称射击）
 
-一个基于 **React + Vite** 构建的现代化个人主页，部署在 GitHub Pages（`xuany14.github.io`），内置明暗主题切换、响应式布局与基于 GitHub Discussions 的评论区。
+一个跑在浏览器里的**写实风格第一人称战术射击游戏网站**，基于 [React](https://react.dev) + [Vite](https://vitejs.dev) + [Three.js](https://threejs.org)。
+打开即玩，无需后端、无需登录。
 
-## ✨ 特性
+线上地址：<https://xuany14.github.io>
 
-- ⚡️ React 18 + Vite 5，极速构建
-- 🌗 亮色 / 暗色主题（记忆用户选择）
-- 📱 完全响应式，移动端友好
-- 🎬 滚动入场动画
-- 💬 评论区（Giscus，无需自建后端）
-- 🚀 一键构建并发布到 GitHub Pages
+> 对标方向：以「真实战场」为核心的战术射击（受《战地》系列启发）。浏览器单机环境用 **大规模 AI 双方混战** 来模拟大战场规模，并实现了真实弹道、可破坏掩体、动态天气、载具协同、据点争夺、兵种分工等核心机制。
 
-## 🗂 目录结构
+## 🎮 玩法
+
+- 选择兵种（突击 / 医疗 / 工程 / 侦察）进入战场，三个据点由红蓝双方争夺。
+- 击杀敌人、占领据点、驾驶载具协同作战，把敌方「兵力值」打光即获胜；己方兵力归零则失败。
+- 真实弹道：子弹有**下坠与散布**、开火有**后坐力**，远距离需抬枪口提前量。
+- 动态天气：晴 / 雨 / 风暴，会影响能见度与作战节奏。
+- 可破坏掩体：木箱、墙体被子弹/炮火命中会碎裂，战场会实时改变。
+
+| 操作 | 说明 |
+| --- | --- |
+| `W A S D` | 移动 |
+| 鼠标 | 转动视角（点击画面锁定鼠标） |
+| 左键 | 开火 |
+| 右键 | 瞄准（腰射 / 精确） |
+| `R` | 换弹 |
+| `Shift` | 疾跑 |
+| 空格 | 跳跃 |
+| `Ctrl` / `C` | 下蹲 |
+| `E` | 进入 / 离开载具（靠近装甲车或坦克时） |
+| `F` | 小队指令（集结点） |
+| `Esc` | 暂停 / 释放鼠标 |
+| `1-4` | 切换兵种预设武器（部分兵种） |
+
+## 🧩 技术结构
 
 ```
-.
-├── index.html
-├── vite.config.js
-├── deploy.sh                 # 一键发布脚本
-├── src/
-│   ├── main.jsx
-│   ├── App.jsx
-│   ├── index.css            # 全局样式 / 设计系统
-│   ├── config/
-│   │   ├── site.js          # ★ 所有站点文案与数据都在这里改
-│   │   └── comments.js      # 评论区（Giscus）配置
-│   └── components/          # 各板块组件
-└── （发布用的静态文件在 master 分支根目录，不在此工作区）
+src/
+  config/game.js          # 全部可调参数：地图/兵种/武器/敌人/据点/天气/载具/AI
+  game/FPSGame.js         # Three.js 引擎：世界/天空/雾/阴影/弹道/破坏/天气/载具/小队AI/据点
+  components/HUD.jsx      # 血量/弹药/兵种/分数/兵力/占领进度/小地图/天气
+  components/Overlays.jsx # 主菜单(选兵种+天气)/暂停/结束 界面
+  App.jsx                 # 状态机：菜单 → 游戏 → 暂停 → 结束
+  index.css               # 写实军事主题与 HUD 样式
 ```
 
-> 注：源码在 `source` 分支；`master` 分支只存放构建后的静态文件，由 GitHub Pages 直接发布。
+核心机制：
+- **实景渲染**：程序化地形 + `Sky` 大气散射太阳 + 指数雾 + 方向光阴影 + HemisphereLight，写实配色。
+- **真实弹道**：Hitscan + 弹道下坠 + 散布 + 后坐力 + 曳光弹；不同枪械有不同弹速/伤害/射速/弹匣。
+- **可破坏掩体**：木箱/墙体被子弹命中按命中数碎裂为碎块（程序化碎片），改变掩体布局。
+- **动态天气**：雨粒子 + 风力 + 雾浓度，可切换晴/雨/风暴预设。
+- **载具**：可驾驶装甲车（炮塔跟随视角、主炮溅射）；敌方/友方 AI 坦克自动交火。
+- **小队与兵种**：四类兵种（突击/医疗/工程/侦察）不同武器与职责；AI 友军/敌军士兵会推进、交火、协同。
+- **据点系统**：3 个据点按驻军比例被占领，控点持续消耗敌方兵力；兵力归零判负。
+- **音效**：WebAudio 合成开火/命中/换弹/炮击音（失败静默，不影响游戏）。
 
-## 🛠 本地开发
+> 素材策略：当前美术为**程序化 PBR + Three 自带天空着色器**，以保证离线可运行与稳定加载。引擎已预留 `GLTFLoader` 接口（`FPSGame.js` 顶部注释），后续可把 Poly Haven / Sketchfab 的高模 GLB 丢入替换默认几何体。
+
+## 🛠️ 本地开发
 
 ```bash
 npm install
@@ -40,46 +63,26 @@ npm run build      # 生产构建到 dist/
 npm run preview    # 预览构建产物 http://localhost:4173
 ```
 
-## ✏️ 如何修改内容
-
-**几乎不需要动代码**——打开 `src/config/site.js`，修改：
-
-- `name` / `title` / `tagline` / `bio`：个人信息
-- `avatar`：头像（默认 `public/avatar.svg`，可换成自己的图片）
-- `socials`：社交链接（支持 github / email / linkedin / twitter / weibo / zhihu / bilibili / telegram / website）
-- `about` / `stats`：关于段落与数据指标
-- `skills`：技能与熟练度（0–100）
-- `projects`：项目卡片（标题、描述、标签、预览/源码链接）
-
-修改后保存即可，发布后会自动更新。
-
-## 💬 启用评论区（Giscus）
-
-评论区基于 [Giscus](https://giscus.app)，使用你仓库的 GitHub Discussions，**免费、无需服务器**。首次使用前需完成两步：
-
-1. 在仓库 **Settings → Features** 中开启 **Discussions**。
-2. 访问 [giscus.app](https://giscus.app)，用 GitHub 登录并授权 Giscus 应用，按提示生成配置，把得到的 **Repository ID** 与 **Category ID** 填入 `src/config/comments.js` 的 `repoId` 与 `categoryId` 字段。
-3. 提交并发布，刷新页面即可看到评论区。
-
-> 未填写前，评论区会显示一段引导提示，不影响其他功能。
-
 ## 🚀 部署
 
-- **源码**在 `source` 分支；
-- **站内静态文件**（构建产物）在 `master` 分支根目录，GitHub Pages 直接从 `master` 发布到 <https://xuany14.github.io>。
+- **源码**在 `source` 分支。
+- **线上成品（GitHub Pages 发布内容）**在 `master` 分支根目录。
+- 发布方式：构建后把 `dist/` 内容推到 `master`。可运行仓库里的 `deploy.sh`：
 
-本地改完内容后，一键构建并发布：
+  ```bash
+  npm run build && ./deploy.sh
+  ```
 
-```bash
-npm run build
-./deploy.sh        # 把 dist/ 推送到 master，公网几分钟内更新
-```
+  `deploy.sh` 会把构建产物提交并推送到 `master`（用户页从默认分支直接发布）。
 
-首次只需确认一次（仓库默认已是此设置，通常不用改）：
-**Settings → Pages → Build and deployment → Source** 选 **Deploy from a branch**，分支选 **master** / **(root)**。
+## ✏️ 想改游戏？
 
-> 说明：这是 `*.github.io` 用户页，GitHub Pages 从默认分支的 `master` 根目录发布（不能用 `gh-pages` 分支，那是项目页的做法）。
+几乎所有平衡性参数都在 **`src/config/game.js`**：
+地图尺寸、四类兵种武器与技能、敌人速度/血量/伤害、每波数量、3 个据点位置、天气预设、载具参数、AI 难度等。
 
-## 🧱 技术栈
+想换美术风格就改 `src/game/FPSGame.js` 与 `src/index.css`；想接入真实 3D 素材参考文件顶部 `GLTFLoader` 接入点。
 
-React · Vite · GitHub Pages · Giscus
+## ⚠️ 已知边界
+
+- 这是**单机 + 大规模 AI 模拟**，并非真实 64 人联网对战（联网需要权威服务器与 netcode，超出浏览器单机能力）。
+- 为兼顾加载速度与稳定性，默认使用程序化写实素材；AAA 级高模需另行接入外部 GLB 资源。

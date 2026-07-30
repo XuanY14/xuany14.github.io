@@ -1,77 +1,66 @@
-import { useEffect, useRef, useState } from 'react'
-import { FPSGame } from './game/FPSGame.js'
-import HUD from './components/HUD.jsx'
-import { MenuOverlay, PauseOverlay, GameOverOverlay } from './components/Overlays.jsx'
+import { useEffect, useRef, useState } from 'react';
+import FPSGame from './game/FPSGame.js';
+import HUD from './components/HUD.jsx';
+import Overlays from './components/Overlays.jsx';
 
 export default function App() {
-  const containerRef = useRef(null)
-  const gameRef = useRef(null)
-  const overRef = useRef(false)
-  const hitTimer = useRef(0)
+  const containerRef = useRef(null);
+  const gameRef = useRef(null);
+  const [view, setView] = useState('menu');
+  const [hud, setHud] = useState(null);
+  const [result, setResult] = useState(null);
+  const [selectedClass, setSelectedClass] = useState('assault');
+  const [selectedWeather, setSelectedWeather] = useState('clear');
 
-  const [screen, setScreen] = useState('menu') // menu | playing | paused | over
-  const [stats, setStats] = useState(null)
-  const [result, setResult] = useState({ score: 0, wave: 0 })
-  const [hitFlash, setHitFlash] = useState(false)
+  const buildGame = () => {
+    if (gameRef.current) { try { gameRef.current.dispose(); } catch (e) {} }
+    const game = new FPSGame(containerRef.current, {
+      onHUD: (s) => setHud(s),
+      onPause: () => setView('paused'),
+      onEnd: (r) => { setResult(r); setView('ended'); },
+      onLockChange: (locked) => {
+        if (!locked && view !== 'ended' && view !== 'menu') setView('paused');
+        if (locked && view === 'paused') setView('playing');
+      },
+    });
+    game.init();
+    gameRef.current = game;
+    return game;
+  };
 
   useEffect(() => {
-    const game = new FPSGame(containerRef.current, {
-      onStats: (s) => setStats(s),
-      onLockChange: (locked) => {
-        if (locked) setScreen('playing')
-        else if (!overRef.current) setScreen('paused')
-      },
-      onHit: (pos) => {
-        setHitFlash(true)
-        game.playHit()
-        clearTimeout(hitTimer.current)
-        hitTimer.current = setTimeout(() => setHitFlash(false), 130)
-      },
-      onGameOver: ({ score, wave }) => {
-        overRef.current = true
-        setResult({ score, wave })
-        setScreen('over')
-      },
-    })
-    game.paused = true // 菜单阶段只渲染背景，不更新模拟
-    game.start()
-    gameRef.current = game
-    return () => game.dispose()
-  }, [])
+    buildGame();
+    return () => { if (gameRef.current) gameRef.current.dispose(); };
+    // eslint-disable-next-line
+  }, []);
 
-  const handlePlay = () => {
-    overRef.current = false
-    gameRef.current?.reset()
-    gameRef.current?.lock()
-  }
-  const handleResume = () => gameRef.current?.lock()
-  const handleRestart = () => {
-    overRef.current = false
-    gameRef.current?.reset()
-    gameRef.current?.lock()
-  }
-  const handleMenu = () => {
-    overRef.current = false
-    if (gameRef.current) gameRef.current.paused = true
-    setScreen('menu')
-  }
+  const launch = (classKey, weatherKey, toMenu = false) => {
+    const g = gameRef.current || buildGame();
+    g.setWeather(weatherKey);
+    g.start(classKey);
+    setResult(null);
+    setView('playing');
+  };
+
+  const onStart = () => launch(selectedClass, selectedWeather);
+  const onRestart = () => launch(selectedClass, selectedWeather);
+  const onResume = () => { setView('playing'); gameRef.current?.resume(); };
 
   return (
     <div className="game-root">
-      <div ref={containerRef} className="game-canvas" />
-
-      {screen === 'playing' && <HUD stats={stats} hitFlash={hitFlash} />}
-
-      {screen === 'menu' && <MenuOverlay onPlay={handlePlay} />}
-      {screen === 'paused' && <PauseOverlay onResume={handleResume} onMenu={handleMenu} />}
-      {screen === 'over' && (
-        <GameOverOverlay
-          score={result.score}
-          wave={result.wave}
-          onRestart={handleRestart}
-          onMenu={handleMenu}
-        />
-      )}
+      <div className="canvas-host" ref={containerRef} />
+      {view === 'playing' && hud && <HUD hud={hud} />}
+      <Overlays
+        view={view}
+        selectedClass={selectedClass}
+        setSelectedClass={setSelectedClass}
+        selectedWeather={selectedWeather}
+        setSelectedWeather={setSelectedWeather}
+        onStart={onStart}
+        onResume={onResume}
+        onRestart={onRestart}
+        result={result}
+      />
     </div>
-  )
+  );
 }
