@@ -1,57 +1,77 @@
-import { useEffect, useState } from 'react'
-import Navbar from './components/Navbar.jsx'
-import Hero from './components/Hero.jsx'
-import About from './components/About.jsx'
-import Skills from './components/Skills.jsx'
-import Projects from './components/Projects.jsx'
-import Contact from './components/Contact.jsx'
-import Comments from './components/Comments.jsx'
-import Footer from './components/Footer.jsx'
+import { useEffect, useRef, useState } from 'react'
+import { FPSGame } from './game/FPSGame.js'
+import HUD from './components/HUD.jsx'
+import { MenuOverlay, PauseOverlay, GameOverOverlay } from './components/Overlays.jsx'
 
 export default function App() {
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved) return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
+  const containerRef = useRef(null)
+  const gameRef = useRef(null)
+  const overRef = useRef(false)
+  const hitTimer = useRef(0)
+
+  const [screen, setScreen] = useState('menu') // menu | playing | paused | over
+  const [stats, setStats] = useState(null)
+  const [result, setResult] = useState({ score: 0, wave: 0 })
+  const [hitFlash, setHitFlash] = useState(false)
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
-
-  // 滚动进入视口时添加 .in 触发动画
-  useEffect(() => {
-    const els = document.querySelectorAll('.reveal')
-    const ob = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add('in')
-            ob.unobserve(e.target)
-          }
-        })
+    const game = new FPSGame(containerRef.current, {
+      onStats: (s) => setStats(s),
+      onLockChange: (locked) => {
+        if (locked) setScreen('playing')
+        else if (!overRef.current) setScreen('paused')
       },
-      { threshold: 0.12 }
-    )
-    els.forEach((el) => ob.observe(el))
-    return () => ob.disconnect()
+      onHit: (pos) => {
+        setHitFlash(true)
+        game.playHit()
+        clearTimeout(hitTimer.current)
+        hitTimer.current = setTimeout(() => setHitFlash(false), 130)
+      },
+      onGameOver: ({ score, wave }) => {
+        overRef.current = true
+        setResult({ score, wave })
+        setScreen('over')
+      },
+    })
+    game.paused = true // 菜单阶段只渲染背景，不更新模拟
+    game.start()
+    gameRef.current = game
+    return () => game.dispose()
   }, [])
 
+  const handlePlay = () => {
+    overRef.current = false
+    gameRef.current?.reset()
+    gameRef.current?.lock()
+  }
+  const handleResume = () => gameRef.current?.lock()
+  const handleRestart = () => {
+    overRef.current = false
+    gameRef.current?.reset()
+    gameRef.current?.lock()
+  }
+  const handleMenu = () => {
+    overRef.current = false
+    if (gameRef.current) gameRef.current.paused = true
+    setScreen('menu')
+  }
+
   return (
-    <>
-      <Navbar theme={theme} toggleTheme={toggleTheme} />
-      <main>
-        <Hero />
-        <About />
-        <Skills />
-        <Projects />
-        <Contact />
-        <Comments theme={theme} />
-      </main>
-      <Footer />
-    </>
+    <div className="game-root">
+      <div ref={containerRef} className="game-canvas" />
+
+      {screen === 'playing' && <HUD stats={stats} hitFlash={hitFlash} />}
+
+      {screen === 'menu' && <MenuOverlay onPlay={handlePlay} />}
+      {screen === 'paused' && <PauseOverlay onResume={handleResume} onMenu={handleMenu} />}
+      {screen === 'over' && (
+        <GameOverOverlay
+          score={result.score}
+          wave={result.wave}
+          onRestart={handleRestart}
+          onMenu={handleMenu}
+        />
+      )}
+    </div>
   )
 }
