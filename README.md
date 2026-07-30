@@ -52,7 +52,25 @@ src/
 - **据点系统**：3 个据点按驻军比例被占领，控点持续消耗敌方兵力；兵力归零判负。
 - **音效**：WebAudio 合成开火/命中/换弹/炮击音（失败静默，不影响游戏）。
 
-> 素材策略：当前美术为**程序化 PBR + Three 自带天空着色器**，以保证离线可运行与稳定加载。引擎已预留 `GLTFLoader` 接口（`FPSGame.js` 顶部注释），后续可把 Poly Haven / Sketchfab 的高模 GLB 丢入替换默认几何体。
+> 素材策略：默认美术为**程序化 PBR + Three 自带天空着色器**，以保证离线可运行与稳定加载；同时引擎已接入 `GLTFLoader`，加载开源 CC0 真实模型与贴图（见下「开源素材」），替换默认几何体与材质。
+
+## 📦 开源素材（已集成）
+
+游戏在运行时从 `public/assets/` 加载以下**开源/免费授权**素材（已入库，运行时无第三方依赖）：
+
+| 素材 | 文件 | 用途 | 来源 / 授权 |
+| --- | --- | --- | --- |
+| 士兵模型（带动画） | `models/CesiumMan.glb` | 敌我士兵人形与行走动画 | [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) · CC0 / Khronos Sample 授权 |
+| 破损头盔 | `models/DamagedHelmet.glb` | 战场残骸/装备掩体 | Khronos glTF Sample Assets · CC0 |
+| 废弃载具 | `models/ToyCar.glb` | 战场废弃载具掩体 | Khronos glTF Sample Assets · CC0 |
+| 草地贴图 | `textures/ground_grass.jpg` | 地面 | three.js 示例贴图（`terrain/grasslight-big.jpg`）· MIT |
+| 砖墙贴图 + 法线 | `textures/prop_brick.jpg` / `prop_brick_nrm.jpg` | 可破坏墙体 | three.js 示例贴图 · MIT |
+| 木箱贴图 | `textures/prop_wood.jpg` | 可破坏木箱 | three.js 示例贴图（`hardwood2_diffuse.jpg`）· MIT |
+| 水面法线 | `textures/normal_water.jpg` | 水面/潮湿效果 | three.js 示例贴图 · MIT |
+
+加载逻辑见 `src/game/FPSGame.js` 的 `loadAssets()`；任一素材缺失会自动回退到程序化几何/贴图，不影响游戏运行。
+
+**换成更高精度素材**：把你的 `.glb` 放到 `public/assets/models/`，在 `loadAssets()` 里改对应 `assetUrl('models/xxx.glb')` 即可；士兵模型需为带骨骼动画的人形（如 Mixamo / Ready Player Me 导出），其余逻辑（命中、阵营染色、动画）会自动适配。
 
 ## 🛠️ 本地开发
 
@@ -85,4 +103,4 @@ npm run preview    # 预览构建产物 http://localhost:4173
 ## ⚠️ 已知边界
 
 - 这是**单机 + 大规模 AI 模拟**，并非真实 64 人联网对战（联网需要权威服务器与 netcode，超出浏览器单机能力）。
-- 为兼顾加载速度与稳定性，默认使用程序化写实素材；AAA 级高模需另行接入外部 GLB 资源。
+- 美术为「程序化 PBR + 开源 CC0 真实模型/贴图」组合，已尽量贴近写实；若需 AAA 级高模，可按上文替换 `public/assets/models/` 下模型并调高 `vite.config.js` 的 `chunkSizeWarningLimit`。

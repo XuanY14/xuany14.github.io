@@ -7,7 +7,12 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import GAME from '../config/game.js';
+
+const ASSET_BASE = import.meta.env.BASE_URL || '/';
+const assetUrl = (p) => `${ASSET_BASE}assets/${p}`;
 
 const TMP_V = new THREE.Vector3();
 const TMP_V2 = new THREE.Vector3();
@@ -56,10 +61,18 @@ export default class FPSGame {
 
     this._raf = null;
     this._listeners = {};
+
+    // 资源（GLTF 模型 + 真实贴图），由 loadAssets() 异步填充，未就绪时回退程序化
+    this.assetReady = false;
+    this.modelTemplates = { soldier: null, helmet: null, car: null };
+    this.soldierAnims = [];
+    this.tex = {};
   }
 
   // -------------------------------------------------------------- 初始化
-  init() {
+  async init() {
+    await this.loadAssets();
+
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
 
@@ -90,6 +103,7 @@ export default class FPSGame {
     this._buildLights();
     this._buildGround();
     this._buildProps();
+    this._buildWrecks();
     this._buildCapturePoints();
     this._buildVehicle();
     this._buildEnemyTank();
@@ -104,6 +118,47 @@ export default class FPSGame {
     this._raf = requestAnimationFrame(this._animate);
 
     this.setWeather('clear');
+  }
+
+  // -------------------------------------------------------------- 资源加载（GLTF 模型 + 真实贴图）
+  async loadAssets() {
+    const loader = new GLTFLoader();
+    const loadGLB = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+    const loadTex = (url, srgb = true) => new Promise((res) => {
+      new THREE.TextureLoader().load(url, (t) => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        t.anisotropy = 8;
+        res(t);
+      }, undefined, () => res(null));
+    });
+    // 模型（失败则保留程序化几何体）
+    try {
+      const [soldier, helmet, car] = await Promise.all([
+        loadGLB(assetUrl('models/CesiumMan.glb')),
+        loadGLB(assetUrl('models/DamagedHelmet.glb')),
+        loadGLB(assetUrl('models/ToyCar.glb')),
+      ]);
+      this.modelTemplates.soldier = soldier.scene || null;
+      this.soldierAnims = soldier.animations || [];
+      this.modelTemplates.helmet = helmet.scene || null;
+      this.modelTemplates.car = car.scene || null;
+      console.info('[assets] GLTF models loaded');
+    } catch (e) {
+      console.warn('[assets] GLTF load failed, using procedural fallback', e);
+    }
+    // 真实贴图（失败则该项留 null，后续回退程序化）
+    const [grass, brick, brickN, wood, water, noise] = await Promise.all([
+      loadTex(assetUrl('textures/ground_grass.jpg'), true),
+      loadTex(assetUrl('textures/prop_brick.jpg'), true),
+      loadTex(assetUrl('textures/prop_brick_nrm.jpg'), false),
+      loadTex(assetUrl('textures/prop_wood.jpg'), true),
+      loadTex(assetUrl('textures/normal_water.jpg'), false),
+      loadTex(assetUrl('textures/noise.jpg'), true),
+    ]);
+    this.tex = { grass, brick, brickN, wood, water, noise };
+    this.assetReady = true;
+    console.info('[assets] textures loaded', Object.keys(this.tex).filter(k => this.tex[k]));
   }
 
   // -------------------------------------------------------------- 天空 / 光照
@@ -161,12 +216,20 @@ export default class FPSGame {
 
   _buildGround() {
     const half = GAME.map.half;
-    const tex = this._tex('#5b5341', [
-      { c: [70, 64, 50], n: 600, r: 4 }, { c: [90, 82, 64], n: 500, r: 3 }, { c: [40, 38, 30], n: 400, r: 2 },
-    ]);
-    tex.repeat.set(half / 8, half / 8);
+    let map = this.tex.grass;
+    if (map) {
+      map = map.clone(); map.needsUpdate = true;
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(half / 9, half / 9);
+      map.anisotropy = 8;
+    } else {
+      map = this._tex('#5b5341', [
+        { c: [70, 64, 50], n: 600, r: 4 }, { c: [90, 82, 64], n: 500, r: 3 }, { c: [40, 38, 30], n: 400, r: 2 },
+      ]);
+      map.repeat.set(half / 8, half / 8);
+    }
     const geo = new THREE.PlaneGeometry(half * 2, half * 2, GAME.map.groundSegments, GAME.map.groundSegments);
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0.0, color: 0x8a8270 });
+    const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.96, metalness: 0.0, color: 0xc9c2ad });
     const ground = new THREE.Mesh(geo, mat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -202,8 +265,10 @@ export default class FPSGame {
 
     for (let i = 0; i < P.crates; i++) {
       const s = 1.2 + Math.random() * 0.6; const p = spot(s); if (!p) continue;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s),
-        new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.9 }));
+      const crateMat = this.tex.wood
+        ? new THREE.MeshStandardMaterial({ map: this.tex.wood, roughness: 0.85, metalness: 0.0 })
+        : new THREE.MeshStandardMaterial({ map: crateTex, roughness: 0.9 });
+      const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
       m.position.set(p[0], s / 2, p[1]);
       m.rotation.y = Math.random() * Math.PI;
       this._addSolid(m, { destructible: true, hp: 45, radius: s * 0.7 });
@@ -211,8 +276,10 @@ export default class FPSGame {
     for (let i = 0; i < P.walls; i++) {
       const p = spot(2); if (!p) continue;
       const w = 4 + Math.random() * 3, h = 2.2 + Math.random();
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.6),
-        new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.95 }));
+      const wMat = this.tex.brick
+        ? new THREE.MeshStandardMaterial({ map: this.tex.brick, normalMap: this.tex.brickN || null, roughness: 0.92, metalness: 0.02 })
+        : new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.95 });
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.6), wMat);
       m.position.set(p[0], h / 2, p[1]); m.rotation.y = Math.random() * Math.PI;
       this._addSolid(m, { destructible: true, hp: 120, radius: Math.max(w, 2) * 0.5 });
     }
@@ -265,6 +332,31 @@ export default class FPSGame {
       const ref = { destructible: false, alive: true, radius: Math.max(w, d) * 0.6 };
       m.userData.solidRef = ref; this.scene.add(m); this.worldMeshes.push(m); this.solidProps.push(m);
     }
+  }
+
+  // -------------------------------------------------------------- 残骸/废弃载具（真实 GLTF 模型作掩体）
+  _buildWrecks() {
+    const nearStart = (x, z) => Math.hypot(x, z - 84) < 20;
+    const nearCP = (x, z) => GAME.capturePoints.some(c => Math.hypot(x - c.pos[0], z - c.pos[2]) < c.radius + 4);
+    const place = (template, count, sMin, sMax) => {
+      if (!template) return;
+      for (let i = 0; i < count; i++) {
+        const g = cloneSkeleton(template);
+        const sc = sMin + Math.random() * (sMax - sMin);
+        g.scale.setScalar(sc);
+        const box = new THREE.Box3().setFromObject(g);
+        const x = (Math.random() * 2 - 1) * (GAME.map.half - 24);
+        const z = (Math.random() * 2 - 1) * (GAME.map.half - 24);
+        if (nearStart(x, z) || nearCP(x, z)) continue;
+        g.position.set(x, -box.min.y, z);
+        g.rotation.y = Math.random() * Math.PI * 2;
+        g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        const radius = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * sc * 0.5 + 0.5;
+        this._addSolid(g, { destructible: false, hp: 0, radius });
+      }
+    };
+    place(this.modelTemplates.helmet, 6, 0.5, 0.85); // 破损头盔/装备残骸
+    place(this.modelTemplates.car, 4, 0.6, 0.95);    // 废弃载具
   }
 
   // -------------------------------------------------------------- 据点
@@ -331,14 +423,45 @@ export default class FPSGame {
 
   // -------------------------------------------------------------- 士兵模型
   _makeSoldier(team) {
-    const color = team === 'enemy' ? GAME.enemy.color : GAME.squad.color;
+    const tint = team === 'enemy' ? new THREE.Color(0xff6a5a) : new THREE.Color(0x6aa8ff);
+    const teamEmissive = team === 'enemy' ? 0x330600 : 0x001a33;
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+
+    if (this.modelTemplates.soldier) {
+      const model = cloneSkeleton(this.modelTemplates.soldier);
+      const bbox = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3(); bbox.getSize(size);
+      const sc = 1.8 / (size.y || 1.8);
+      model.scale.setScalar(sc);
+      model.position.y = -bbox.min.y * sc;
+      const parts = [];
+      model.traverse(o => {
+        if (o.isMesh) {
+          o.castShadow = true; o.receiveShadow = true;
+          const tintMat = (m) => {
+            if (m.color) m.color.multiply(tint);
+            if (m.emissive) m.emissive.setHex(teamEmissive);
+          };
+          if (Array.isArray(o.material)) { o.material = o.material.map(m => { const c = m.clone(); tintMat(c); return c; }); }
+          else { o.material = o.material.clone(); tintMat(o.material); }
+          parts.push(o);
+          o.userData.soldier = null; // 在 _spawnSoldier 中指向 s
+        }
+      });
+      g.add(model);
+      g.userData.parts = parts;
+      g.userData.model = model;
+      return g;
+    }
+
+    // 回退：程序化人形
+    const color = team === 'enemy' ? GAME.enemy.color : GAME.squad.color;
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, emissive: teamEmissive });
     const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.8, 0.4), new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 1 }));
     legs.position.y = 0.4;
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.35), mat); torso.position.y = 1.2;
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.32), new THREE.MeshStandardMaterial({ color: 0xc9a07a, roughness: 1 })); head.position.y = 1.78;
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color, roughness: 0.7 })); helmet.position.y = 1.9;
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color, roughness: 0.7, emissive: teamEmissive })); helmet.position.y = 1.9;
     const gun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.9), new THREE.MeshStandardMaterial({ color: 0x151515 })); gun.position.set(0.22, 1.2, 0.5);
     [legs, torso, head, helmet, gun].forEach(m => { m.castShadow = true; g.add(m); });
     g.userData.parts = [legs, torso, head, helmet, gun];
@@ -349,11 +472,17 @@ export default class FPSGame {
     const g = this._makeSoldier(team);
     g.position.copy(pos);
     this.scene.add(g);
+    let mixer = null;
+    if (g.userData.model && this.soldierAnims && this.soldierAnims.length) {
+      mixer = new THREE.AnimationMixer(g.userData.model);
+      mixer.clipAction(this.soldierAnims[0]).play();
+    }
     const s = {
       team, root: g, alive: true, hp: team === 'enemy' ? GAME.enemy.health : GAME.squad.health,
       maxHp: team === 'enemy' ? GAME.enemy.health : GAME.squad.health,
       vel: new THREE.Vector3(), fireCd: Math.random() * 1.5, strafe: Math.random() > 0.5 ? 1 : -1, strafeT: 1 + Math.random() * 2,
-      parts: g.userData.parts, hitFlash: 0,
+      parts: g.userData.parts, hitFlash: 0, mixer,
+      teamEmissive: team === 'enemy' ? 0x330600 : 0x001a33,
     };
     g.userData.parts.forEach(p => { p.userData.soldier = s; });
     this.soldiers.push(s);
@@ -514,7 +643,7 @@ export default class FPSGame {
   _hitscan(origin, dir, damage, range, color) {
     const ray = new THREE.Raycaster(origin, dir, 0.1, range);
     const targets = [...this.worldMeshes]; this.enemies.forEach(e => { if (e.alive) e.parts.forEach(p => targets.push(p)); });
-    const hits = ray.intersectObjects(targets, false);
+    const hits = ray.intersectObjects(targets, true);
     let end = origin.clone().add(dir.clone().multiplyScalar(range));
     if (hits.length) {
       const h = hits[0]; end = h.point.clone();
@@ -575,6 +704,8 @@ export default class FPSGame {
   }
   _ragdoll(s) {
     s.root.rotation.x = Math.PI / 2; s.root.position.y = 0.4;
+    if (s.mixer) { try { s.mixer.stopAllAction(); } catch (e) {} }
+    s.parts.forEach(p => { if (p.material && p.material.emissive) p.material.emissive.setHex(0x330000); });
     setTimeout(() => { this.scene.remove(s.root); }, 4000);
   }
 
@@ -601,7 +732,7 @@ export default class FPSGame {
     const origin = v.barrel.getWorldPosition(new THREE.Vector3());
     const ray = new THREE.Raycaster(origin, dir, 0.1, 600);
     const targets = [...this.worldMeshes]; this.enemies.forEach(e => { if (e.alive) e.parts.forEach(p => targets.push(p)); });
-    const hits = ray.intersectObjects(targets, false);
+    const hits = ray.intersectObjects(targets, true);
     let end = origin.clone().add(dir.clone().multiplyScalar(400));
     if (hits.length) { end = hits[0].point.clone(); const sol = hits[0].object.userData.soldier; if (sol && sol.alive) this._damageEnemy(sol, GAME.vehicle.cannonDamage); }
     // 溅射
@@ -613,7 +744,7 @@ export default class FPSGame {
   _los(from, to) {
     const dir = to.clone().sub(from); const dist = dir.length(); dir.normalize();
     const ray = new THREE.Raycaster(from, dir, 0.1, dist - 1);
-    const hits = ray.intersectObjects(this.worldMeshes, false);
+    const hits = ray.intersectObjects(this.worldMeshes, true);
     return hits.length === 0;
   }
   _updateSoldier(s, dt, isEnemy) {
@@ -766,6 +897,8 @@ export default class FPSGame {
     // 敌人/友军 AI
     this.enemies.forEach(e => this._updateSoldier(e, dt, true));
     this.allies.forEach(a => this._updateSoldier(a, dt, false));
+    // 士兵动画
+    this.soldiers.forEach(s => { if (s.alive && s.mixer) s.mixer.update(dt); });
     // 敌军补充（维持战斗规模）
     if (this.enemies.filter(e => e.alive).length < 4) this._spawnReinforcements();
 
@@ -857,7 +990,7 @@ export default class FPSGame {
     const d = dir.clone(); d.x += (Math.random() - 0.5) * GAME.vehicle.mgSpread; d.y += (Math.random() - 0.5) * GAME.vehicle.mgSpread; d.normalize();
     const ray = new THREE.Raycaster(origin, d, 0.1, 300);
     const targets = [...this.worldMeshes]; this.enemies.forEach(e => { if (e.alive) e.parts.forEach(p => targets.push(p)); });
-    const hits = ray.intersectObjects(targets, false);
+    const hits = ray.intersectObjects(targets, true);
     let end = origin.clone().add(d.clone().multiplyScalar(250));
     if (hits.length) { end = hits[0].point.clone(); const sol = hits[0].object.userData.soldier; if (sol && sol.alive) this._damageEnemy(sol, GAME.vehicle.mgDamage); }
     this._tracer(origin, end, 0xffd27f); this._sfx('mg');
@@ -908,8 +1041,13 @@ export default class FPSGame {
       if (d.mesh.position.y < 0.15) { d.mesh.position.y = 0.15; d.vel.set(0, 0, 0); }
       if (d.life <= 0) { this.scene.remove(d.mesh); this.debris.splice(i, 1); }
     }
-    // 命中闪白恢复
-    this.soldiers.forEach(s => { if (s.alive && s.hitFlash <= 0) s.parts.forEach(p => p.material.emissive && p.material.emissive.setHex(0x000000)); });
+    // 命中闪白恢复（标记期间保留高亮）
+    this.soldiers.forEach(s => {
+      if (s.alive && s.hitFlash <= 0 && this._spotTimer <= 0) {
+        const hex = s.teamEmissive !== undefined ? s.teamEmissive : 0x000000;
+        s.parts.forEach(p => p.material.emissive && p.material.emissive.setHex(hex));
+      }
+    });
   }
 
   _emitHUD() {
